@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>For People Imports – Calculadora V4 PRO</title>
+
+<style>
+body{
+  font-family: Arial, sans-serif;
+  background:#f5f7fa;
+  margin:0;
+  padding:20px;
+}
+h1{color:#0a48c9;text-align:center;}
+.container{
+  background:#fff;
+  padding:20px;
+  border-radius:10px;
+  max-width:1200px;
+  margin:auto;
+}
+input{
+  width:100%;
+  padding:6px;
+}
+button{
+  padding:10px 14px;
+  border:none;
+  border-radius:6px;
+  background:#0a48c9;
+  color:#fff;
+  cursor:pointer;
+}
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:15px;
+}
+th,td{
+  border:1px solid #ccc;
+  padding:6px;
+  text-align:center;
+}
+th{background:#0a48c9;color:#fff;}
+tfoot td{font-weight:bold;background:#eef2ff;}
+.controls{
+  display:flex;
+  gap:10px;
+  margin-bottom:15px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+<h1>FOR PEOPLE IMPORTS – V4 PRO</h1>
+
+<div class="controls">
+  Tipo de cambio USD→ARS:
+  <input id="tc" type="number" value="1600">
+  IIBB %:
+  <input id="iibb" type="number" value="3">
+  Gastos locales USD:
+  <input id="gastos" type="number" value="0">
+</div>
+
+<button onclick="agregarProducto()">➕ Agregar producto</button>
+<button onclick="exportarExcel()">📊 Exportar Excel</button>
+
+<table id="tabla">
+<thead>
+<tr>
+  <th>Producto</th>
+  <th>NCM</th>
+  <th>Arancel %</th>
+  <th>FOB USD</th>
+  <th>Cant</th>
+  <th>Flete USD</th>
+  <th>Seguro USD</th>
+  <th>CIF</th>
+  <th>Derechos</th>
+  <th>IVA</th>
+  <th>Total USD</th>
+  <th>Unit USD</th>
+  <th>Total ARS</th>
+</tr>
+</thead>
+<tbody></tbody>
+<tfoot>
+<tr>
+  <td colspan="10">TOTAL GENERAL</td>
+  <td id="totalUSD">0</td>
+  <td></td>
+  <td id="totalARS">0</td>
+</tr>
+</tfoot>
+</table>
+
+</div>
+
+<script>
+// BASE DE ARANCELES (EDITABLE)
+const aranceles = {
+  "85181000": 16,
+  "94042100": 18,
+  "39269090": 20
+};
+
+let productos = [];
+
+function agregarProducto(){
+  productos.push({
+    nombre:"",
+    ncm:"",
+    arancel:0,
+    fob:0,
+    cant:1,
+    flete:0,
+    seguro:0
+  });
+  render();
+}
+
+function render(){
+  const tbody = document.querySelector("#tabla tbody");
+  tbody.innerHTML = "";
+  productos.forEach((p,i)=>{
+    tbody.innerHTML += `
+    <tr>
+      <td><input value="${p.nombre}" oninput="upd(${i},'nombre',this.value)"></td>
+      <td><input value="${p.ncm}" oninput="setNCM(${i},this.value)"></td>
+      <td>${p.arancel}</td>
+      <td><input type="number" value="${p.fob}" oninput="upd(${i},'fob',this.value)"></td>
+      <td><input type="number" value="${p.cant}" oninput="upd(${i},'cant',this.value)"></td>
+      <td><input type="number" value="${p.flete}" oninput="upd(${i},'flete',this.value)"></td>
+      <td><input type="number" value="${p.seguro}" oninput="upd(${i},'seguro',this.value)"></td>
+      ${filaCalculo(p)}
+    </tr>`;
+  });
+  totales();
+}
+
+function setNCM(i,val){
+  productos[i].ncm = val;
+  productos[i].arancel = aranceles[val] || 0;
+  render();
+}
+
+function upd(i,k,v){
+  productos[i][k] = isNaN(v)?v:Number(v);
+  render();
+}
+
+function filaCalculo(p){
+  let cif = (p.fob*p.cant)+p.flete+p.seguro;
+  let derechos = cif*(p.arancel/100);
+  let tasa = cif*0.03;
+  let base = cif+derechos+tasa;
+  let iva = base*0.21 + base*0.105 + base*0.06 + base*(document.getElementById("iibb").value/100);
+  let total = cif+derechos+tasa+iva+Number(document.getElementById("gastos").value);
+  return `
+    <td>${cif.toFixed(2)}</td>
+    <td>${derechos.toFixed(2)}</td>
+    <td>${iva.toFixed(2)}</td>
+    <td>${total.toFixed(2)}</td>
+    <td>${(total/p.cant).toFixed(2)}</td>
+    <td>${(total*document.getElementById("tc").value).toFixed(0)}</td>
+  `;
+}
+
+function totales(){
+  let usd=0, ars=0;
+  productos.forEach(p=>{
+    let cif=(p.fob*p.cant)+p.flete+p.seguro;
+    let derechos=cif*(p.arancel/100);
+    let tasa=cif*0.03;
+    let base=cif+derechos+tasa;
+    let iva=base*0.21+base*0.105+base*0.06+base*(document.getElementById("iibb").value/100);
+    let total=cif+derechos+tasa+iva+Number(document.getElementById("gastos").value);
+    usd+=total;
+    ars+=total*document.getElementById("tc").value;
+  });
+  document.getElementById("totalUSD").innerText=usd.toFixed(2);
+  document.getElementById("totalARS").innerText=ars.toFixed(0);
+}
+
+function exportarExcel(){
+  let csv="Producto,NCM,Arancel,FOB,Cant,Flete,Seguro,CIF,Derechos,IVA,Total USD,Total ARS\n";
+  productos.forEach(p=>{
+    let cif=(p.fob*p.cant)+p.flete+p.seguro;
+    let derechos=cif*(p.arancel/100);
+    let tasa=cif*0.03;
+    let base=cif+derechos+tasa;
+    let iva=base*0.21+base*0.105+base*0.06+base*(document.getElementById("iibb").value/100);
+    let total=cif+derechos+tasa+iva+Number(document.getElementById("gastos").value);
+    csv+=`${p.nombre},${p.ncm},${p.arancel},${p.fob},${p.cant},${p.flete},${p.seguro},${cif.toFixed(2)},${derechos.toFixed(2)},${iva.toFixed(2)},${total.toFixed(2)},${(total*document.getElementById("tc").value).toFixed(0)}\n`;
+  });
+  let a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv]));
+  a.download="importacion_v4_pro.csv";
+  a.click();
+}
+</script>
+
+</body>
+</html>
